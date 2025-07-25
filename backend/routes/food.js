@@ -58,6 +58,17 @@ router.post('/', async (req, res) => {
       });
     }
 
+    // Convert dietary_info to array if it's a string
+    let dietary_info_array = null;
+    if (dietary_info) {
+      if (Array.isArray(dietary_info)) {
+        dietary_info_array = dietary_info;
+      } else if (typeof dietary_info === 'string') {
+        // Split by comma and trim whitespace
+        dietary_info_array = dietary_info.split(',').map(item => item.trim()).filter(item => item.length > 0);
+      }
+    }
+
     const { data, error } = await supabase
       .from('food_items')
       .insert({
@@ -67,7 +78,7 @@ router.post('/', async (req, res) => {
         expiry_date,
         pickup_location,
         category,
-        dietary_info,
+        dietary_info: dietary_info_array,
         created_by: user.id,
         status: 'available'
       })
@@ -274,6 +285,108 @@ router.post('/:id/request', async (req, res) => {
     });
   } catch (error) {
     console.error('Request food error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all food requests (for donors to see requests for their food)
+router.get('/requests', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No authorization header' });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError) {
+      return res.status(401).json({ error: authError.message });
+    }
+
+    const { data, error } = await supabase
+      .from('food_requests')
+      .select(`
+        *,
+        food_items (
+          id,
+          title,
+          description,
+          quantity,
+          pickup_location,
+          category
+        ),
+        profiles:requested_by (
+          full_name,
+          phone,
+          user_type
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ requests: data });
+  } catch (error) {
+    console.error('Get food requests error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get requests for a specific food item
+router.get('/:id/requests', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: 'No authorization header' });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError) {
+      return res.status(401).json({ error: authError.message });
+    }
+
+    const { id } = req.params;
+
+    // Check if user owns this food item
+    const { data: foodItem, error: ownerError } = await supabase
+      .from('food_items')
+      .select('created_by')
+      .eq('id', id)
+      .single();
+
+    if (ownerError) {
+      return res.status(404).json({ error: 'Food item not found' });
+    }
+
+    if (foodItem.created_by !== user.id) {
+      return res.status(403).json({ error: 'You can only view requests for your own food items' });
+    }
+
+    const { data, error } = await supabase
+      .from('food_requests')
+      .select(`
+        *,
+        profiles:requested_by (
+          full_name,
+          phone,
+          user_type
+        )
+      `)
+      .eq('food_item_id', id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    res.json({ requests: data });
+  } catch (error) {
+    console.error('Get food item requests error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

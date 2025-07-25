@@ -21,8 +21,11 @@ router.post('/register', async (req, res) => {
       options: {
         data: {
           full_name,
-          user_type
-        }
+          user_type,
+          phone: req.body.phone || '',
+          address: req.body.address || ''
+        },
+        emailRedirectTo: undefined // Disable email confirmation for development
       }
     });
 

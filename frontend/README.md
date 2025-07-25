@@ -1,87 +1,73 @@
-# Frontend - Bridge Food Connect
+# Welcome to your Lovable project
 
-*Frontend implementation coming soon...*
+## Project info
 
-## 🎯 **Planned Features**
+**URL**: https://lovable.dev/projects/23d92239-a3ec-4bbe-b5f9-e76fb7b9e209
 
-- **User Interface**: Clean, responsive design for food sharing
-- **Authentication**: Login/Register forms connected to backend API
-- **Food Listings**: Browse available food items with filters
-- **Food Requests**: Request food items and manage requests
-- **User Dashboard**: Manage profile, donations, and requests
-- **Interactive Maps**: Show pickup locations
-- **Real-time Updates**: Live notifications for new food items and requests
+## How can I edit this code?
 
-## 🛠️ **Recommended Tech Stack**
+There are several ways of editing your application.
 
-Choose one of these popular frontend frameworks:
+**Use Lovable**
 
-### Option 1: React.js
-```bash
-npx create-react-app bridge-food-connect-frontend
-cd bridge-food-connect-frontend
-npm install axios react-router-dom
+Simply visit the [Lovable Project](https://lovable.dev/projects/23d92239-a3ec-4bbe-b5f9-e76fb7b9e209) and start prompting.
+
+Changes made via Lovable will be committed automatically to this repo.
+
+**Use your preferred IDE**
+
+If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+
+The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+
+Follow these steps:
+
+```sh
+# Step 1: Clone the repository using the project's Git URL.
+git clone <YOUR_GIT_URL>
+
+# Step 2: Navigate to the project directory.
+cd <YOUR_PROJECT_NAME>
+
+# Step 3: Install the necessary dependencies.
+npm i
+
+# Step 4: Start the development server with auto-reloading and an instant preview.
+npm run dev
 ```
 
-### Option 2: Next.js (Recommended)
-```bash
-npx create-next-app@latest bridge-food-connect-frontend
-cd bridge-food-connect-frontend
-npm install axios
-```
+**Edit a file directly in GitHub**
 
-### Option 3: Vue.js
-```bash
-npm create vue@latest bridge-food-connect-frontend
-cd bridge-food-connect-frontend
-npm install axios vue-router
-```
+- Navigate to the desired file(s).
+- Click the "Edit" button (pencil icon) at the top right of the file view.
+- Make your changes and commit the changes.
 
-## 🔗 **Backend Integration**
+**Use GitHub Codespaces**
 
-The backend API is already running at `http://localhost:3000` with the following endpoints:
+- Navigate to the main page of your repository.
+- Click on the "Code" button (green button) near the top right.
+- Select the "Codespaces" tab.
+- Click on "New codespace" to launch a new Codespace environment.
+- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `GET /api/auth/me` - Get current user
+## What technologies are used for this project?
 
-### Food Items
-- `GET /api/food` - Get all food items
-- `POST /api/food` - Create food item
-- `GET /api/food/:id` - Get specific food item
-- `PUT /api/food/:id` - Update food item
-- `DELETE /api/food/:id` - Delete food item
+This project is built with:
 
-### User Profile
-- `GET /api/users/profile` - Get user profile
-- `PUT /api/users/profile` - Update user profile
+- Vite
+- TypeScript
+- React
+- shadcn-ui
+- Tailwind CSS
 
-## 📋 **Todo List**
+## How can I deploy this project?
 
-- [ ] Choose frontend framework (React/Next.js/Vue)
-- [ ] Set up project structure
-- [ ] Create authentication pages (login/register)
-- [ ] Design main dashboard
-- [ ] Implement food listing page
-- [ ] Create food item creation form
-- [ ] Add food request functionality
-- [ ] Implement user profile management
-- [ ] Add responsive design
-- [ ] Connect to backend API
-- [ ] Add error handling
-- [ ] Implement loading states
-- [ ] Add form validation
+Simply open [Lovable](https://lovable.dev/projects/23d92239-a3ec-4bbe-b5f9-e76fb7b9e209) and click on Share -> Publish.
 
-## 🎨 **Design Considerations**
+## Can I connect a custom domain to my Lovable project?
 
-- **Mobile-first design** for accessibility
-- **Clean, intuitive interface** for easy food sharing
-- **Map integration** for pickup locations
-- **Image upload** for food items
-- **Dark/light mode** support
-- **Accessibility features** (WCAG compliance)
+Yes, you can!
 
----
+To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
-**Note**: The original frontend was accidentally removed. This folder is prepared for a new frontend implementation that will connect to the existing, fully functional backend API.
+Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
