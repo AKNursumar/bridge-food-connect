@@ -37,11 +37,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const login = async (email: string, password: string) => {
     try {
       const response = await authAPI.login({ email, password });
-      const { token, user: userData } = response.data;
       
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('user', JSON.stringify(userData));
-      setUser(userData);
+      if (response.data.success) {
+        const { token, user: userData } = response.data;
+        
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('user', JSON.stringify(userData));
+        setUser(userData);
+      } else {
+        throw new Error(response.data.error || 'Login failed');
+      }
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -51,11 +56,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const register = async (userData: any) => {
     try {
       const response = await authAPI.register(userData);
-      const { token, user: newUser } = response.data;
       
-      localStorage.setItem('authToken', token);
-      localStorage.setItem('user', JSON.stringify(newUser));
-      setUser(newUser);
+      if (response.data.success) {
+        if (response.data.requiresConfirmation) {
+          // User needs to confirm email
+          throw new Error('Please check your email and confirm your account before logging in.');
+        }
+        
+        const { token, user: newUser } = response.data;
+        localStorage.setItem('authToken', token);
+        localStorage.setItem('user', JSON.stringify(newUser));
+        setUser(newUser);
+      } else {
+        throw new Error(response.data.error || 'Registration failed');
+      }
     } catch (error) {
       console.error('Registration error:', error);
       throw error;

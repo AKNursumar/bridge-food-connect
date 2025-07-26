@@ -24,18 +24,30 @@ router.post('/register', async (req, res) => {
           user_type,
           phone: req.body.phone || '',
           address: req.body.address || ''
-        },
-        emailRedirectTo: undefined // Disable email confirmation for development
+        }
       }
     });
 
     if (authError) {
+      console.log('Registration error:', authError);
       return res.status(400).json({ error: authError.message });
     }
 
+    // Check if user was created but needs email confirmation
+    if (authData.user && !authData.session) {
+      return res.status(201).json({
+        success: true,
+        message: 'Registration successful! Please check your email to confirm your account before logging in.',
+        user: authData.user,
+        requiresConfirmation: true
+      });
+    }
+
     res.status(201).json({
+      success: true,
       message: 'User registered successfully',
       user: authData.user,
+      token: authData.session?.access_token,
       session: authData.session
     });
   } catch (error) {
@@ -61,12 +73,15 @@ router.post('/login', async (req, res) => {
     });
 
     if (error) {
+      console.log('Login error:', error);
       return res.status(401).json({ error: error.message });
     }
 
     res.json({
+      success: true,
       message: 'Login successful',
       user: data.user,
+      token: data.session.access_token,
       session: data.session
     });
   } catch (error) {
