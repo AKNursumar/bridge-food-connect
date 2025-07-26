@@ -55,7 +55,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const register = async (userData: any) => {
     try {
+      console.log('Sending registration data:', userData);
       const response = await authAPI.register(userData);
+      console.log('Registration response:', response.data);
       
       if (response.data.success) {
         if (response.data.requiresConfirmation) {

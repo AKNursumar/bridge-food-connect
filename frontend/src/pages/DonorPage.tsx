@@ -6,17 +6,25 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Clock, MapPin, Package, CheckCircle, AlertCircle, XCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { foodAPI } from '@/lib/api';
+import { Calendar, Clock, MapPin, Package, CheckCircle, AlertCircle, XCircle, Loader2 } from 'lucide-react';
 
 const DonorPage = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  
   const [formData, setFormData] = useState({
-    foodType: '',
-    quantity: '',
-    expiryDate: '',
-    expiryTime: '',
-    location: '',
-    pickupWindow: '',
+    title: '',
     description: '',
+    quantity: '',
+    expiry_date: '',
+    pickup_location: '',
+    category: '',
+    dietary_info: '',
   });
 
   const [donations] = useState([
@@ -56,20 +64,56 @@ const DonorPage = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Handle form submission
-    console.log('Donation submitted:', formData);
-    // Reset form
+  const handleSelectChange = (name: string, value: string) => {
     setFormData({
-      foodType: '',
-      quantity: '',
-      expiryDate: '',
-      expiryTime: '',
-      location: '',
-      pickupWindow: '',
-      description: '',
+      ...formData,
+      [name]: value,
     });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to submit food donations",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const response = await foodAPI.createFoodItem(formData);
+      
+      toast({
+        title: "Donation Submitted Successfully!",
+        description: "Your food donation has been posted and volunteers will be notified.",
+        variant: "default",
+      });
+
+      // Reset form
+      setFormData({
+        title: '',
+        description: '',
+        quantity: '',
+        expiry_date: '',
+        pickup_location: '',
+        category: '',
+        dietary_info: '',
+      });
+    } catch (error: any) {
+      console.error('Failed to submit donation:', error);
+      toast({
+        title: "Submission Failed",
+        description: error.response?.data?.error || error.message || "Failed to submit donation. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -126,95 +170,121 @@ const DonorPage = () => {
               </CardHeader>
               <CardContent>
                 <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="foodType">Food Type</Label>
-                      <Input
-                        id="foodType"
-                        name="foodType"
-                        value={formData.foodType}
-                        onChange={handleInputChange}
-                        placeholder="e.g., Fresh vegetables, Baked goods"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="quantity">Quantity</Label>
-                      <Input
-                        id="quantity"
-                        name="quantity"
-                        value={formData.quantity}
-                        onChange={handleInputChange}
-                        placeholder="e.g., 10 lbs, 50 items"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="expiryDate">Expiry Date</Label>
-                      <Input
-                        id="expiryDate"
-                        name="expiryDate"
-                        type="date"
-                        value={formData.expiryDate}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="expiryTime">Expiry Time</Label>
-                      <Input
-                        id="expiryTime"
-                        name="expiryTime"
-                        type="time"
-                        value={formData.expiryTime}
-                        onChange={handleInputChange}
-                        required
-                      />
-                    </div>
-                  </div>
-
                   <div>
-                    <Label htmlFor="location">Pickup Location</Label>
+                    <Label htmlFor="title">Food Title</Label>
                     <Input
-                      id="location"
-                      name="location"
-                      value={formData.location}
+                      id="title"
+                      name="title"
+                      value={formData.title}
                       onChange={handleInputChange}
-                      placeholder="e.g., 123 Main St, San Francisco, CA"
+                      placeholder="e.g., Fresh vegetables, Baked goods"
                       required
                     />
                   </div>
 
                   <div>
-                    <Label htmlFor="pickupWindow">Pickup Time Window</Label>
-                    <Input
-                      id="pickupWindow"
-                      name="pickupWindow"
-                      value={formData.pickupWindow}
-                      onChange={handleInputChange}
-                      placeholder="e.g., 2:00 PM - 6:00 PM"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="description">Additional Description</Label>
+                    <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
                       name="description"
                       value={formData.description}
                       onChange={handleInputChange}
-                      placeholder="Any special instructions or additional details..."
+                      placeholder="Describe the food items, condition, etc."
+                      required
                       rows={3}
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" variant="hero">
-                    Submit Donation
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="quantity">Quantity</Label>
+                      <Input
+                        id="quantity"
+                        name="quantity"
+                        type="number"
+                        value={formData.quantity}
+                        onChange={handleInputChange}
+                        placeholder="e.g., 10, 50"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="category">Category</Label>
+                      <Select value={formData.category} onValueChange={(value) => handleSelectChange('category', value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select food category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="fresh">Fresh Produce</SelectItem>
+                          <SelectItem value="prepared">Prepared Meals</SelectItem>
+                          <SelectItem value="baked">Baked Goods</SelectItem>
+                          <SelectItem value="dairy">Dairy Products</SelectItem>
+                          <SelectItem value="canned">Canned/Packaged</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="expiry_date">Expiry Date</Label>
+                      <Input
+                        id="expiry_date"
+                        name="expiry_date"
+                        type="date"
+                        value={formData.expiry_date}
+                        onChange={handleInputChange}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="dietary_info">Dietary Info</Label>
+                      <Input
+                        id="dietary_info"
+                        name="dietary_info"
+                        value={formData.dietary_info}
+                        onChange={handleInputChange}
+                        placeholder="e.g., Contains nuts, Gluten-free"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="pickup_location">Pickup Location</Label>
+                    <Input
+                      id="pickup_location"
+                      name="pickup_location"
+                      value={formData.pickup_location}
+                      onChange={handleInputChange}
+                      placeholder="Full address or specific location details"
+                      required
+                    />
+                  </div>
+
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    variant="hero"
+                    disabled={submitting || !user}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Submitting Donation...
+                      </>
+                    ) : !user ? (
+                      'Please Log In to Donate'
+                    ) : (
+                      'Submit Donation'
+                    )}
                   </Button>
+
+                  {!user && (
+                    <p className="text-sm text-muted-foreground text-center">
+                      You need to be logged in to submit food donations.
+                    </p>
+                  )}
                 </form>
               </CardContent>
             </Card>
@@ -222,55 +292,54 @@ const DonorPage = () => {
             {/* Donation History */}
             <Card className="shadow-elevation animate-slide-in">
               <CardHeader>
-                <CardTitle>Your Donation History</CardTitle>
+                <CardTitle className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <span>Your Donation History</span>
+                </CardTitle>
                 <CardDescription>
-                  Track the status of your current and past donations
+                  Track the impact of your food donations
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {donations.map((donation) => (
-                    <div
-                      key={donation.id}
-                      className="p-4 border border-border rounded-lg bg-gradient-card hover:shadow-soft transition-all duration-300"
-                    >
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3 className="font-semibold text-foreground">
-                            {donation.foodType}
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            {donation.quantity}
-                          </p>
+                    <Card key={donation.id} className="shadow-soft animate-slide-in">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="font-semibold text-foreground">
+                              {donation.foodType}
+                            </h3>
+                            <p className="text-sm text-muted-foreground">
+                              {donation.quantity}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {getStatusIcon(donation.status)}
+                            <Badge className={getStatusColor(donation.status)}>
+                              {donation.status}
+                            </Badge>
+                          </div>
                         </div>
-                        <div className="flex items-center space-x-2">
-                          {getStatusIcon(donation.status)}
-                          <Badge className={getStatusColor(donation.status)}>
-                            {donation.status}
-                          </Badge>
-                        </div>
-                      </div>
 
-                      <div className="flex items-center space-x-4 text-sm text-muted-foreground">
-                        <div className="flex items-center space-x-1">
-                          <MapPin className="h-4 w-4" />
-                          <span>{donation.location}</span>
+                        <div className="space-y-2 text-sm text-muted-foreground">
+                          <div className="flex items-center space-x-2">
+                            <MapPin className="h-4 w-4" />
+                            <span>{donation.location}</span>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="h-4 w-4" />
+                            <span>Posted: {donation.date}</span>
+                          </div>
+                          {donation.volunteer && (
+                            <div className="flex items-center space-x-2">
+                              <Package className="h-4 w-4" />
+                              <span>Picked up by: <span className="font-medium text-foreground">{donation.volunteer}</span></span>
+                            </div>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>{donation.date}</span>
-                        </div>
-                      </div>
-
-                      {donation.volunteer && (
-                        <div className="mt-2 text-sm">
-                          <span className="text-muted-foreground">Picked up by: </span>
-                          <span className="font-medium text-primary">
-                            {donation.volunteer}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               </CardContent>

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { foodAPI } from '@/lib/api';
-import { MapPin, Clock, Package, Filter, Map, List, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
+import { MapPin, Clock, Package, Filter, Map, List, CheckCircle, ArrowRight, Loader2, RefreshCw } from 'lucide-react';
 
 const VolunteerPage = () => {
   const { user } = useAuth();
@@ -26,90 +26,58 @@ const VolunteerPage = () => {
   const [loading, setLoading] = useState(true);
   const [claimingIds, setClaimingIds] = useState(new Set());
 
+  // Function to fetch donations (extracted for reuse)
+  const fetchDonations = async () => {
+    try {
+      setLoading(true);
+      console.log('Fetching donations from API...');
+      const response = await foodAPI.getFoodItems();
+      console.log('API response:', response.data);
+      
+      if (response.data.success || response.data.food_items) {
+        // Transform backend data to match frontend structure
+        let foodItems = response.data.food_items || [];
+        
+        console.log('Received food items:', foodItems);
+        
+        const transformedDonations = foodItems.map((item: any) => ({
+          id: item.id,
+          foodType: item.title,
+          quantity: `${item.quantity} ${item.quantity > 1 ? 'items' : 'item'}`,
+          location: item.pickup_location,
+          distance: 'Calculating...', // You could add geolocation calculation here
+          expiryTime: new Date(item.expiry_date).toLocaleDateString(),
+          urgency: getUrgencyFromDate(item.expiry_date),
+          pickupWindow: 'Contact donor', // Could be enhanced with pickup time field
+          donor: item.profiles?.full_name || 'Anonymous Donor',
+          description: item.description,
+          category: item.category,
+          dietary_info: item.dietary_info,
+          created_at: item.created_at,
+        }));
+        
+        console.log('Transformed donations:', transformedDonations);
+        setAvailableDonations(transformedDonations);
+      }
+    } catch (error) {
+      console.error('Failed to fetch donations:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load available donations",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch available food items from backend
   useEffect(() => {
-    const fetchDonations = async () => {
-      try {
-        setLoading(true);
-        const response = await foodAPI.getFoodItems();
-        
-        if (response.data.success || response.data.food_items) {
-          // Transform backend data to match frontend structure
-          let foodItems = response.data.food_items;
-          
-          // If no food items in database, add some demo data for testing
-          if (foodItems.length === 0) {
-            foodItems = [
-              {
-                id: 'demo-1',
-                title: 'Fresh Pizza Slices',
-                quantity: 8,
-                pickup_location: 'Tech Office, 123 Innovation Drive',
-                expiry_date: '2025-07-27',
-                description: 'Leftover pizza from office lunch, still warm!',
-                category: 'prepared',
-                dietary_info: 'Contains gluten, cheese',
-                created_at: new Date().toISOString(),
-                profiles: { full_name: 'Demo Restaurant', user_type: 'donor' }
-              },
-              {
-                id: 'demo-2',
-                title: 'Fresh Vegetables',
-                quantity: 25,
-                pickup_location: 'Green Market, 456 Healthy Street',
-                expiry_date: '2025-07-28',
-                description: 'Organic vegetables from today\'s market',
-                category: 'fresh',
-                dietary_info: 'Organic, pesticide-free',
-                created_at: new Date().toISOString(),
-                profiles: { full_name: 'Organic Farm Co-op', user_type: 'donor' }
-              },
-              {
-                id: 'demo-3',
-                title: 'Baked Goods',
-                quantity: 15,
-                pickup_location: 'Sunrise Bakery, 789 Baker Lane',
-                expiry_date: '2025-07-26',
-                description: 'End of day pastries and bread',
-                category: 'baked',
-                dietary_info: 'Contains gluten, dairy',
-                created_at: new Date().toISOString(),
-                profiles: { full_name: 'Sunrise Bakery', user_type: 'donor' }
-              }
-            ];
-          }
-          
-          const transformedDonations = foodItems.map((item: any) => ({
-            id: item.id,
-            foodType: item.title,
-            quantity: `${item.quantity} ${item.quantity > 1 ? 'items' : 'item'}`,
-            location: item.pickup_location,
-            distance: 'Calculating...', // You could add geolocation calculation here
-            expiryTime: new Date(item.expiry_date).toLocaleDateString(),
-            urgency: getUrgencyFromDate(item.expiry_date),
-            pickupWindow: 'Contact donor', // Could be enhanced with pickup time field
-            donor: item.profiles?.full_name || 'Anonymous Donor',
-            description: item.description,
-            category: item.category,
-            dietary_info: item.dietary_info,
-            created_at: item.created_at,
-          }));
-          
-          setAvailableDonations(transformedDonations);
-        }
-      } catch (error) {
-        console.error('Failed to fetch donations:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load available donations",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchDonations();
+    
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(fetchDonations, 30000);
+    return () => clearInterval(interval);
   }, [toast]);
 
   // Helper function to determine urgency based on expiry date
@@ -288,7 +256,19 @@ const VolunteerPage = () => {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Available Donations */}
                 <div>
-                  <h2 className="text-2xl font-semibold mb-4">Available Donations</h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-2xl font-semibold">Available Donations</h2>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchDonations}
+                      disabled={loading}
+                      className="flex items-center space-x-2"
+                    >
+                      <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                      <span>Refresh</span>
+                    </Button>
+                  </div>
                   <div className="space-y-4">
                     {loading ? (
                       <Card className="shadow-soft">

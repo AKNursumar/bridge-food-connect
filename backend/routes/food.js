@@ -2,27 +2,74 @@ const express = require('express');
 const supabase = require('../config/supabase');
 const router = express.Router();
 
+// Mock food storage for when Supabase is unavailable
+let mockFoodItems = [];
+
+// Helper function to authenticate user (with mock fallback)
+async function authenticateUser(token) {
+  // Check if it's a mock token
+  if (token.startsWith('mock-token-')) {
+    const userId = token.replace('mock-token-', '');
+    return {
+      success: true,
+      user: { id: userId },
+      isMock: true
+    };
+  }
+
+  try {
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    if (error) throw error;
+    return { success: true, user, isMock: false };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
 // Get all food items
 router.get('/', async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('food_items')
-      .select(`
-        *,
-        profiles:created_by (
-          full_name,
-          user_type
-        )
-      `)
-      .order('created_at', { ascending: false });
+    // For development with mock auth, always use mock data
+    console.log('Fetching food items - using mock data mode');
+    
+    // Return mock food items with sample data
+    const allMockItems = [
+      ...mockFoodItems,
+      // Add some default sample items for testing
+      {
+        id: 'sample-1',
+        title: 'Fresh Pizza Slices',
+        description: 'Leftover pizza from office lunch, still warm!',
+        quantity: 8,
+        expiry_date: '2025-07-27',
+        pickup_location: 'Tech Office, 123 Innovation Drive',
+        category: 'prepared',
+        dietary_info: 'Contains gluten, cheese',
+        created_by: 'sample-user',
+        status: 'available',
+        created_at: new Date().toISOString(),
+        profiles: { full_name: 'Demo Restaurant', user_type: 'donor' }
+      },
+      {
+        id: 'sample-2',
+        title: 'Fresh Vegetables',
+        description: 'Organic vegetables from today\'s market',
+        quantity: 25,
+        expiry_date: '2025-07-28',
+        pickup_location: 'Green Market, 456 Healthy Street',
+        category: 'fresh',
+        dietary_info: 'Organic, pesticide-free',
+        created_by: 'sample-user',
+        status: 'available',
+        created_at: new Date().toISOString(),
+        profiles: { full_name: 'Organic Farm Co-op', user_type: 'donor' }
+      }
+    ];
 
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
-
+    console.log('Returning food items:', allMockItems.length, 'items');
     res.json({ 
       success: true,
-      food_items: data 
+      food_items: allMockItems 
     });
   } catch (error) {
     console.error('Get food items error:', error);
@@ -39,10 +86,10 @@ router.post('/', async (req, res) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const authResult = await authenticateUser(token);
 
-    if (authError) {
-      return res.status(401).json({ error: authError.message });
+    if (!authResult.success) {
+      return res.status(401).json({ error: authResult.error });
     }
 
     const {
@@ -58,6 +105,35 @@ router.post('/', async (req, res) => {
     if (!title || !description || !quantity || !pickup_location) {
       return res.status(400).json({
         error: 'Missing required fields: title, description, quantity, pickup_location'
+      });
+    }
+
+    // If using mock authentication, store in mock array and return success
+    if (authResult.isMock) {
+      console.log('Mock food item creation:', { title, description, quantity, pickup_location });
+      
+      const newMockItem = {
+        id: 'mock-' + Date.now(),
+        title,
+        description,
+        quantity,
+        expiry_date,
+        pickup_location,
+        category,
+        dietary_info,
+        created_by: authResult.user.id,
+        status: 'available',
+        created_at: new Date().toISOString(),
+        profiles: { full_name: 'Mock User', user_type: 'donor' }
+      };
+      
+      // Add to mock storage
+      mockFoodItems.push(newMockItem);
+      
+      return res.status(201).json({
+        success: true,
+        message: 'Food item created successfully (mock mode)',
+        food_item: newMockItem
       });
     }
 
@@ -82,7 +158,7 @@ router.post('/', async (req, res) => {
         pickup_location,
         category,
         dietary_info: dietary_info_array,
-        created_by: user.id,
+        created_by: authResult.user.id,
         status: 'available'
       })
       .select();
@@ -92,6 +168,7 @@ router.post('/', async (req, res) => {
     }
 
     res.status(201).json({
+      success: true,
       message: 'Food item created successfully',
       food_item: data[0]
     });
