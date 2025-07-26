@@ -23,7 +23,7 @@ const App = () => (
       <AuthProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter basename={import.meta.env.PROD ? '/bridge-food-connect' : ''}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/donate" element={<DonorPage />} />
