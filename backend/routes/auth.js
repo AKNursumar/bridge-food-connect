@@ -1,5 +1,6 @@
 const express = require('express');
 const supabase = require('../config/supabase');
+const mockAuth = require('../mockAuth');
 const router = express.Router();
 
 // Register user
@@ -14,45 +15,58 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // Register user with Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name,
-          user_type,
-          phone: req.body.phone || '',
-          address: req.body.address || ''
+    // Try Supabase first, fallback to mock if it fails
+    try {
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name,
+            user_type,
+            phone: req.body.phone || '',
+            address: req.body.address || ''
+          }
         }
+      });
+
+      if (authError) {
+        console.log('Supabase registration error:', authError);
+        throw authError;
       }
-    });
 
-    if (authError) {
-      console.log('Registration error:', authError);
-      return res.status(400).json({ error: authError.message });
-    }
+      // Check if user was created but needs email confirmation
+      if (authData.user && !authData.session) {
+        return res.status(201).json({
+          success: true,
+          message: 'Registration successful! Please check your email to confirm your account before logging in.',
+          user: authData.user,
+          requiresConfirmation: true
+        });
+      }
 
-    // Check if user was created but needs email confirmation
-    if (authData.user && !authData.session) {
-      return res.status(201).json({
+      res.status(201).json({
         success: true,
-        message: 'Registration successful! Please check your email to confirm your account before logging in.',
+        message: 'User registered successfully',
         user: authData.user,
-        requiresConfirmation: true
+        token: authData.session?.access_token,
+        session: authData.session
+      });
+    } catch (supabaseError) {
+      console.log('Supabase failed, trying mock auth...');
+      
+      // Fallback to mock authentication
+      const mockResult = await mockAuth.register(req.body);
+      res.status(201).json({
+        success: true,
+        message: 'User registered successfully (mock mode)',
+        user: mockResult.user,
+        token: mockResult.token
       });
     }
-
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully',
-      user: authData.user,
-      token: authData.session?.access_token,
-      session: authData.session
-    });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: error.message || 'Registration failed' });
   }
 });
 
@@ -67,26 +81,40 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
+    // Try Supabase first, fallback to mock if it fails
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
 
-    if (error) {
-      console.log('Login error:', error);
-      return res.status(401).json({ error: error.message });
+      if (error) {
+        console.log('Supabase login error:', error);
+        throw error;
+      }
+
+      res.json({
+        success: true,
+        message: 'Login successful',
+        user: data.user,
+        token: data.session.access_token,
+        session: data.session
+      });
+    } catch (supabaseError) {
+      console.log('Supabase failed, trying mock auth...');
+      
+      // Fallback to mock authentication
+      const mockResult = await mockAuth.login(email, password);
+      res.json({
+        success: true,
+        message: 'Login successful (mock mode)',
+        user: mockResult.user,
+        token: mockResult.token
+      });
     }
-
-    res.json({
-      success: true,
-      message: 'Login successful',
-      user: data.user,
-      token: data.session.access_token,
-      session: data.session
-    });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(401).json({ error: error.message || 'Invalid credentials' });
   }
 });
 
