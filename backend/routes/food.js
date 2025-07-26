@@ -20,7 +20,10 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: error.message });
     }
 
-    res.json({ food_items: data });
+    res.json({ 
+      success: true,
+      food_items: data 
+    });
   } catch (error) {
     console.error('Get food items error:', error);
     res.status(500).json({ error: 'Internal server error' });

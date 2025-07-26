@@ -33,9 +33,53 @@ const VolunteerPage = () => {
         setLoading(true);
         const response = await foodAPI.getFoodItems();
         
-        if (response.data.success) {
+        if (response.data.success || response.data.food_items) {
           // Transform backend data to match frontend structure
-          const transformedDonations = response.data.food_items.map((item: any) => ({
+          let foodItems = response.data.food_items;
+          
+          // If no food items in database, add some demo data for testing
+          if (foodItems.length === 0) {
+            foodItems = [
+              {
+                id: 'demo-1',
+                title: 'Fresh Pizza Slices',
+                quantity: 8,
+                pickup_location: 'Tech Office, 123 Innovation Drive',
+                expiry_date: '2025-07-27',
+                description: 'Leftover pizza from office lunch, still warm!',
+                category: 'prepared',
+                dietary_info: 'Contains gluten, cheese',
+                created_at: new Date().toISOString(),
+                profiles: { full_name: 'Demo Restaurant', user_type: 'donor' }
+              },
+              {
+                id: 'demo-2',
+                title: 'Fresh Vegetables',
+                quantity: 25,
+                pickup_location: 'Green Market, 456 Healthy Street',
+                expiry_date: '2025-07-28',
+                description: 'Organic vegetables from today\'s market',
+                category: 'fresh',
+                dietary_info: 'Organic, pesticide-free',
+                created_at: new Date().toISOString(),
+                profiles: { full_name: 'Organic Farm Co-op', user_type: 'donor' }
+              },
+              {
+                id: 'demo-3',
+                title: 'Baked Goods',
+                quantity: 15,
+                pickup_location: 'Sunrise Bakery, 789 Baker Lane',
+                expiry_date: '2025-07-26',
+                description: 'End of day pastries and bread',
+                category: 'baked',
+                dietary_info: 'Contains gluten, dairy',
+                created_at: new Date().toISOString(),
+                profiles: { full_name: 'Sunrise Bakery', user_type: 'donor' }
+              }
+            ];
+          }
+          
+          const transformedDonations = foodItems.map((item: any) => ({
             id: item.id,
             foodType: item.title,
             quantity: `${item.quantity} ${item.quantity > 1 ? 'items' : 'item'}`,
@@ -44,7 +88,7 @@ const VolunteerPage = () => {
             expiryTime: new Date(item.expiry_date).toLocaleDateString(),
             urgency: getUrgencyFromDate(item.expiry_date),
             pickupWindow: 'Contact donor', // Could be enhanced with pickup time field
-            donor: item.donor_name || 'Anonymous Donor',
+            donor: item.profiles?.full_name || 'Anonymous Donor',
             description: item.description,
             category: item.category,
             dietary_info: item.dietary_info,
