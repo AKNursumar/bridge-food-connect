@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,82 +7,77 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, Clock, Package, Filter, Map, List, CheckCircle, ArrowRight } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { foodAPI } from '@/lib/api';
+import { MapPin, Clock, Package, Filter, Map, List, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 const VolunteerPage = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [filters, setFilters] = useState({
     distance: '',
     foodType: '',
     urgency: '',
   });
 
-  const [availableDonations] = useState([
-    {
-      id: 1,
-      foodType: 'Fresh Vegetables',
-      quantity: '50 lbs',
-      location: 'Downtown Restaurant, 123 Main St',
-      distance: '0.5 miles',
-      expiryTime: '6:00 PM today',
-      urgency: 'High',
-      pickupWindow: '2:00 PM - 6:00 PM',
-      donor: 'Green Garden Restaurant',
-    },
-    {
-      id: 2,
-      foodType: 'Baked Goods',
-      quantity: '20 items',
-      location: 'City Bakery, 456 Oak Ave',
-      distance: '1.2 miles',
-      expiryTime: '8:00 PM today',
-      urgency: 'Medium',
-      pickupWindow: '4:00 PM - 8:00 PM',
-      donor: 'Sunrise Bakery',
-    },
-    {
-      id: 3,
-      foodType: 'Prepared Meals',
-      quantity: '15 meals',
-      location: 'Community Center, 789 Pine St',
-      distance: '2.1 miles',
-      expiryTime: '7:00 PM today',
-      urgency: 'High',
-      pickupWindow: '5:00 PM - 7:00 PM',
-      donor: 'Unity Community Kitchen',
-    },
-    {
-      id: 4,
-      foodType: 'Dairy Products',
-      quantity: '30 items',
-      location: 'Local Grocery, 321 Elm St',
-      distance: '3.0 miles',
-      expiryTime: '10:00 PM today',
-      urgency: 'Low',
-      pickupWindow: '6:00 PM - 10:00 PM',
-      donor: 'FreshMart Grocery',
-    },
-  ]);
+  const [availableDonations, setAvailableDonations] = useState([]);
+  const [pickupHistory, setPickupHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [claimingIds, setClaimingIds] = useState(new Set());
 
-  const [pickupHistory] = useState([
-    {
-      id: 1,
-      foodType: 'Canned Foods',
-      quantity: '25 cans',
-      donor: 'Metro Supermarket',
-      date: '2024-01-18',
-      status: 'Completed',
-      recipient: 'City Food Bank',
-    },
-    {
-      id: 2,
-      foodType: 'Fresh Bread',
-      quantity: '40 loaves',
-      donor: 'Artisan Bakery',
-      date: '2024-01-15',
-      status: 'Completed',
-      recipient: 'Homeless Shelter',
-    },
-  ]);
+  // Fetch available food items from backend
+  useEffect(() => {
+    const fetchDonations = async () => {
+      try {
+        setLoading(true);
+        const response = await foodAPI.getFoodItems();
+        
+        if (response.data.success) {
+          // Transform backend data to match frontend structure
+          const transformedDonations = response.data.food_items.map((item: any) => ({
+            id: item.id,
+            foodType: item.title,
+            quantity: `${item.quantity} ${item.quantity > 1 ? 'items' : 'item'}`,
+            location: item.pickup_location,
+            distance: 'Calculating...', // You could add geolocation calculation here
+            expiryTime: new Date(item.expiry_date).toLocaleDateString(),
+            urgency: getUrgencyFromDate(item.expiry_date),
+            pickupWindow: 'Contact donor', // Could be enhanced with pickup time field
+            donor: item.donor_name || 'Anonymous Donor',
+            description: item.description,
+            category: item.category,
+            dietary_info: item.dietary_info,
+            created_at: item.created_at,
+          }));
+          
+          setAvailableDonations(transformedDonations);
+        }
+      } catch (error) {
+        console.error('Failed to fetch donations:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load available donations",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDonations();
+  }, [toast]);
+
+  // Helper function to determine urgency based on expiry date
+  const getUrgencyFromDate = (expiryDate: string) => {
+    const now = new Date();
+    const expiry = new Date(expiryDate);
+    const diffHours = (expiry.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    if (diffHours < 24) return 'High';
+    if (diffHours < 72) return 'Medium';
+    return 'Low';
+  };
 
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
@@ -97,9 +92,69 @@ const VolunteerPage = () => {
     }
   };
 
-  const handleClaimPickup = (donationId: number) => {
-    console.log('Claiming pickup for donation:', donationId);
-    // Handle pickup claim logic
+  const handleClaimPickup = async (donationId: number) => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to claim food pickups",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setClaimingIds(prev => new Set([...prev, donationId]));
+      
+      const requestData = {
+        message: "I would like to claim this food pickup for distribution to those in need.",
+        contact_info: user.email,
+        pickup_notes: "Will coordinate pickup time with donor"
+      };
+
+      const response = await foodAPI.requestFood(donationId.toString(), requestData);
+      
+      if (response.data.success) {
+        toast({
+          title: "Pickup Claimed Successfully!",
+          description: "The donor will be notified. Check your email for pickup details.",
+          variant: "default",
+        });
+
+        // Remove the claimed item from available donations
+        setAvailableDonations(prev => 
+          prev.filter((donation: any) => donation.id !== donationId)
+        );
+
+        // Add to pickup history (you could fetch this from backend instead)
+        const claimedItem = availableDonations.find((d: any) => d.id === donationId);
+        if (claimedItem) {
+          setPickupHistory(prev => [{
+            id: Date.now(), // temporary ID
+            foodType: claimedItem.foodType,
+            quantity: claimedItem.quantity,
+            donor: claimedItem.donor,
+            date: new Date().toISOString().split('T')[0],
+            status: 'Pending Pickup',
+            recipient: 'To be distributed',
+          }, ...prev]);
+        }
+      } else {
+        throw new Error(response.data.message || 'Failed to claim pickup');
+      }
+    } catch (error: any) {
+      console.error('Failed to claim pickup:', error);
+      toast({
+        title: "Claim Failed",
+        description: error.response?.data?.error || error.message || "Failed to claim pickup. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setClaimingIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(donationId);
+        return newSet;
+      });
+    }
   };
 
   return (
@@ -191,53 +246,97 @@ const VolunteerPage = () => {
                 <div>
                   <h2 className="text-2xl font-semibold mb-4">Available Donations</h2>
                   <div className="space-y-4">
-                    {availableDonations.map((donation) => (
-                      <Card key={donation.id} className="shadow-soft hover:shadow-elevation transition-all duration-300 animate-slide-in">
-                        <CardContent className="p-6">
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <h3 className="font-semibold text-lg text-foreground">
-                                {donation.foodType}
-                              </h3>
-                              <p className="text-muted-foreground">{donation.quantity}</p>
-                            </div>
-                            <Badge className={getUrgencyColor(donation.urgency)}>
-                              {donation.urgency} Urgency
-                            </Badge>
-                          </div>
-
-                          <div className="space-y-2 mb-4">
-                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                              <MapPin className="h-4 w-4" />
-                              <span>{donation.location}</span>
-                              <span className="text-primary font-medium">({donation.distance})</span>
-                            </div>
-                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                              <Clock className="h-4 w-4" />
-                              <span>Pickup: {donation.pickupWindow}</span>
-                            </div>
-                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                              <Package className="h-4 w-4" />
-                              <span>Expires: {donation.expiryTime}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">
-                              From: <span className="font-medium text-foreground">{donation.donor}</span>
-                            </span>
-                            <Button 
-                              variant="hero" 
-                              onClick={() => handleClaimPickup(donation.id)}
-                              className="group"
-                            >
-                              Claim Pickup
-                              <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                            </Button>
-                          </div>
+                    {loading ? (
+                      <Card className="shadow-soft">
+                        <CardContent className="p-6 text-center">
+                          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                          <p className="text-muted-foreground">Loading available donations...</p>
                         </CardContent>
                       </Card>
-                    ))}
+                    ) : availableDonations.length === 0 ? (
+                      <Card className="shadow-soft">
+                        <CardContent className="p-6 text-center">
+                          <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                          <h3 className="text-lg font-semibold mb-2">No Donations Available</h3>
+                          <p className="text-muted-foreground">
+                            There are currently no food donations available for pickup. Check back later!
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      availableDonations.map((donation: any) => (
+                        <Card key={donation.id} className="shadow-soft hover:shadow-elevation transition-all duration-300 animate-slide-in">
+                          <CardContent className="p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <div>
+                                <h3 className="font-semibold text-lg text-foreground">
+                                  {donation.foodType}
+                                </h3>
+                                <p className="text-muted-foreground">{donation.quantity}</p>
+                                {donation.description && (
+                                  <p className="text-sm text-muted-foreground mt-1">{donation.description}</p>
+                                )}
+                              </div>
+                              <Badge className={getUrgencyColor(donation.urgency)}>
+                                {donation.urgency} Urgency
+                              </Badge>
+                            </div>
+
+                            <div className="space-y-2 mb-4">
+                              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                <MapPin className="h-4 w-4" />
+                                <span>{donation.location}</span>
+                                <span className="text-primary font-medium">({donation.distance})</span>
+                              </div>
+                              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                <Clock className="h-4 w-4" />
+                                <span>Pickup: {donation.pickupWindow}</span>
+                              </div>
+                              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                <Package className="h-4 w-4" />
+                                <span>Expires: {donation.expiryTime}</span>
+                              </div>
+                              {donation.dietary_info && (
+                                <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                  <span className="font-medium">Dietary Info:</span>
+                                  <span>{donation.dietary_info}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-muted-foreground">
+                                From: <span className="font-medium text-foreground">{donation.donor}</span>
+                              </span>
+                              {user ? (
+                                <Button 
+                                  variant="hero" 
+                                  onClick={() => handleClaimPickup(donation.id)}
+                                  disabled={claimingIds.has(donation.id)}
+                                  className="group"
+                                >
+                                  {claimingIds.has(donation.id) ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                      Claiming...
+                                    </>
+                                  ) : (
+                                    <>
+                                      Claim Pickup
+                                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform ml-2" />
+                                    </>
+                                  )}
+                                </Button>
+                              ) : (
+                                <Button variant="outline" disabled>
+                                  Login to Claim
+                                </Button>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))
+                    )}
                   </div>
                 </div>
 

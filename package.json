@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "bridge-food-connect",
   "version": "1.0.0",
   "description": "Full-stack application for connecting food donors with recipients to reduce food waste",
@@ -14,7 +14,8 @@
     "install:frontend": "cd frontend && npm install",
     "install:all": "npm run install:backend && npm run install:frontend",
     "build": "npm run build:frontend",
-    "build:frontend": "cd frontend && npm run build"
+    "build:frontend": "cd frontend && npm run build",
+    "vercel-build": "cd frontend && npm install && npm run build"
   },
   "keywords": [
     "food-sharing",
